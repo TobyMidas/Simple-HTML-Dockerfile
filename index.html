@@ -1,0 +1,251 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus — Pomodoro Timer</title>
+<style>
+  :root {
+    --ink: #1c1b1a;
+    --paper: #faf8f5;
+    --line: #1c1b1a;
+    --accent: #3d5a4f;
+    --accent-soft: #e4ebe7;
+    --warn: #a83b2e;
+  }
+ 
+  * { box-sizing: border-box; }
+ 
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Courier New', ui-monospace, monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+ 
+  .card {
+    width: 100%;
+    max-width: 420px;
+    border: 2px solid var(--line);
+    padding: 40px 32px;
+    background: var(--paper);
+  }
+ 
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 0 0 4px;
+    color: var(--accent);
+  }
+ 
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 28px;
+    margin: 0 0 28px;
+    border-bottom: 2px solid var(--line);
+    padding-bottom: 16px;
+  }
+ 
+  .mode-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+ 
+  .mode-btn {
+    flex: 1;
+    padding: 8px 4px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+ 
+  .mode-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+ 
+  .clock {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 88px;
+    text-align: center;
+    line-height: 1;
+    margin: 12px 0 8px;
+    font-variant-numeric: tabular-nums;
+  }
+ 
+  .session-count {
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6b6862;
+    margin-bottom: 28px;
+  }
+ 
+  .controls {
+    display: flex;
+    gap: 10px;
+  }
+ 
+  .btn {
+    flex: 1;
+    padding: 14px 0;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 2px solid var(--line);
+    cursor: pointer;
+    background: var(--paper);
+    color: var(--ink);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+ 
+  .btn:hover { background: var(--accent-soft); }
+ 
+  .btn.primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+ 
+  .btn.primary:hover { background: var(--accent); }
+ 
+  .status {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 12px;
+    color: #6b6862;
+    min-height: 16px;
+  }
+ 
+  .status.done { color: var(--warn); font-weight: bold; }
+ 
+  @media (max-width: 480px) {
+    .clock { font-size: 64px; }
+    .card { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+ 
+<div class="card">
+  <p class="eyebrow">Session</p>
+  <h1>Focus Timer</h1>
+ 
+  <div class="mode-row">
+    <button class="mode-btn active" data-mins="25" data-label="Focus">Focus 25</button>
+    <button class="mode-btn" data-mins="5" data-label="Short break">Break 5</button>
+    <button class="mode-btn" data-mins="15" data-label="Long break">Long 15</button>
+  </div>
+ 
+  <div class="clock" id="clock">25:00</div>
+  <div class="session-count" id="sessionCount">0 sessions completed</div>
+ 
+  <div class="controls">
+    <button class="btn primary" id="startPause">Start</button>
+    <button class="btn" id="reset">Reset</button>
+  </div>
+ 
+  <p class="status" id="status"></p>
+</div>
+ 
+<script>
+  let totalSeconds = 25 * 60;
+  let remaining = totalSeconds;
+  let timerId = null;
+  let running = false;
+  let sessionsCompleted = 0;
+  let currentLabel = "Focus";
+ 
+  const clockEl = document.getElementById('clock');
+  const startPauseBtn = document.getElementById('startPause');
+  const resetBtn = document.getElementById('reset');
+  const statusEl = document.getElementById('status');
+  const sessionCountEl = document.getElementById('sessionCount');
+  const modeButtons = document.querySelectorAll('.mode-btn');
+ 
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+ 
+  function render() {
+    clockEl.textContent = formatTime(remaining);
+    document.title = `${formatTime(remaining)} — ${currentLabel}`;
+  }
+ 
+  function tick() {
+    if (remaining > 0) {
+      remaining -= 1;
+      render();
+    } else {
+      clearInterval(timerId);
+      running = false;
+      startPauseBtn.textContent = "Start";
+      statusEl.textContent = `${currentLabel} session complete.`;
+      statusEl.classList.add('done');
+      if (currentLabel === "Focus") {
+        sessionsCompleted += 1;
+        sessionCountEl.textContent = `${sessionsCompleted} session${sessionsCompleted === 1 ? '' : 's'} completed`;
+      }
+    }
+  }
+ 
+  startPauseBtn.addEventListener('click', () => {
+    if (running) {
+      clearInterval(timerId);
+      running = false;
+      startPauseBtn.textContent = "Start";
+    } else {
+      running = true;
+      startPauseBtn.textContent = "Pause";
+      statusEl.textContent = "";
+      statusEl.classList.remove('done');
+      timerId = setInterval(tick, 1000);
+    }
+  });
+ 
+  resetBtn.addEventListener('click', () => {
+    clearInterval(timerId);
+    running = false;
+    remaining = totalSeconds;
+    startPauseBtn.textContent = "Start";
+    statusEl.textContent = "";
+    statusEl.classList.remove('done');
+    render();
+  });
+ 
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      totalSeconds = parseInt(btn.dataset.mins, 10) * 60;
+      remaining = totalSeconds;
+      currentLabel = btn.dataset.label;
+      clearInterval(timerId);
+      running = false;
+      startPauseBtn.textContent = "Start";
+      statusEl.textContent = "";
+      statusEl.classList.remove('done');
+      render();
+    });
+  });
+ 
+  render();
+</script>
+ 
+</body>
+</html>
